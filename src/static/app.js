@@ -3,7 +3,51 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  // Admin login elements
+  const adminLoginBtn = document.getElementById("admin-login-btn");
+  const adminLoginModal = document.getElementById("admin-login-modal");
+  const adminLoginForm = document.getElementById("admin-login-form");
+  const adminCancelBtn = document.getElementById("admin-cancel-btn");
+  const adminLoginMessage = document.getElementById("admin-login-message");
+  const adminStatus = document.getElementById("admin-status");
+  let isTeacher = false;
+  let teacherUsername = "";
 
+  // Admin login UI logic
+  adminLoginBtn.addEventListener("click", () => {
+    adminLoginModal.classList.remove("hidden");
+  });
+  adminCancelBtn.addEventListener("click", () => {
+    adminLoginModal.classList.add("hidden");
+    adminLoginMessage.classList.add("hidden");
+    adminLoginForm.reset();
+  });
+  adminLoginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("admin-username").value;
+    const password = document.getElementById("admin-password").value;
+    try {
+      const resp = await fetch("/static/teachers.json");
+      const teachers = await resp.json();
+      const found = teachers.find(
+        (t) => t.username === username && t.password === password
+      );
+      if (found) {
+        isTeacher = true;
+        teacherUsername = username;
+        adminLoginModal.classList.add("hidden");
+        adminStatus.textContent = `Logged in as ${username}`;
+        adminStatus.classList.remove("hidden");
+        adminLoginMessage.classList.add("hidden");
+      } else {
+        adminLoginMessage.textContent = "Invalid username or password.";
+        adminLoginMessage.classList.remove("hidden");
+      }
+    } catch (err) {
+      adminLoginMessage.textContent = "Login failed. Please try again.";
+      adminLoginMessage.classList.remove("hidden");
+    }
+  });
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
@@ -58,7 +102,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Add event listeners to delete buttons
       document.querySelectorAll(".delete-btn").forEach((button) => {
-        button.addEventListener("click", handleUnregister);
+        // Only allow teachers to unregister
+        if (isTeacher) {
+          button.disabled = false;
+          button.addEventListener("click", handleUnregister);
+        } else {
+          button.disabled = true;
+          button.title = "Only teachers can unregister participants.";
+        }
       });
     } catch (error) {
       activitiesList.innerHTML =
@@ -113,10 +164,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Handle form submission
   signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-
     const email = document.getElementById("email").value;
     const activity = document.getElementById("activity").value;
-
+    if (!isTeacher) {
+      messageDiv.textContent = "Only teachers can register students.";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+      return;
+    }
     try {
       const response = await fetch(
         `/activities/${encodeURIComponent(
@@ -126,24 +184,17 @@ document.addEventListener("DOMContentLoaded", () => {
           method: "POST",
         }
       );
-
       const result = await response.json();
-
       if (response.ok) {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
-
-        // Refresh activities list to show updated participants
         fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
       }
-
       messageDiv.classList.remove("hidden");
-
-      // Hide message after 5 seconds
       setTimeout(() => {
         messageDiv.classList.add("hidden");
       }, 5000);
